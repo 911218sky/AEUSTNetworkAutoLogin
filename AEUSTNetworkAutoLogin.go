@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"path/filepath"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-ini/ini"
@@ -15,9 +16,7 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-var (
-	configFilePath = "config.ini"
-)
+var configFilePath string
 
 type Config struct {
 	Ping         string
@@ -69,7 +68,8 @@ func configExists() bool {
 }
 
 func createLogFilePath(filename string) string {
-	dir, _ := os.Getwd()
+	executablePath, _ := os.Executable()
+	dir := filepath.Dir(executablePath)
 	return filepath.Join(dir, filename)
 }
 
@@ -216,7 +216,10 @@ func runMain(config *Config) {
 }
 
 func initialize() {
-	fmt.Println(configFilePath)
+	executablePath, _ := os.Executable()
+	dir := filepath.Dir(executablePath)
+	configFilePath = filepath.Join(dir, "config.ini")
+
 	var config *Config
 	var err error
 	if !configExists() {
@@ -232,6 +235,7 @@ func initialize() {
 			return
 		}
 	}
+
 	fmt.Printf("%s configuration loaded successfully\n", config.Username)
 	runMain(config)
 }
