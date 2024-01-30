@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -202,7 +201,7 @@ func mainProcess(config *Config) {
 			logError(config, err)
 			return
 		}
-		if resp.StatusCode() == http.StatusOK {
+		if resp.StatusCode() == 200 {
 			logSuccess(config, "Login successful "+config.Username)
 		}
 	}

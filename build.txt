@@ -1,0 +1,5 @@
+https://golang.dbwu.tech/engineering/upx/
+
+go build -ldflags="-s -w" -trimpath -o AEUSTNetworkAutoLogin.exe AEUSTNetworkAutoLogin.go
+
+go build -ldflags="-s -w" -trimpath -o AEUSTNetworkAutoLogin.exe; upx -9 AEUSTNetworkAutoLogin.exe
