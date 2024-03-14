@@ -166,8 +166,7 @@ func mainProcess(config *Config) {
 		}
 		loginUrl := match[1]
 
-		resp, err = client.R().
-			Get(loginUrl)
+		resp, _ = client.R().Get(loginUrl)
 
 		body = resp.String()
 
