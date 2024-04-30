@@ -29,15 +29,20 @@ func main() {
 	}
 
 	// Check if the log paths are valid and create log files if they don't exist.
-	_, err = utils.CreateLogFile(cfg.LoginLogPath)
-	if err != nil {
-		fmt.Printf("Failed to create login log file: %v\n", err)
-		os.Exit(1)
+	if !utils.CheckFileExists(cfg.LoginLogPath) {
+		_, err = utils.CreateLogFile(cfg.LoginLogPath)
+		if err != nil {
+			fmt.Printf("Failed to create login log file: %v\n", err)
+			os.Exit(1)
+		}
 	}
-	_, err = utils.CreateLogFile(cfg.ErrorLogPath)
-	if err != nil {
-		fmt.Printf("Failed to create error log file: %v\n", err)
-		os.Exit(1)
+
+	if !utils.CheckFileExists(cfg.ErrorLogPath) {
+		_, err = utils.CreateLogFile(cfg.ErrorLogPath)
+		if err != nil {
+			fmt.Printf("Failed to create error log file: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Printf("Configuration loaded. Username: %s\n", cfg.Username)
