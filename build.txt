@@ -3,11 +3,12 @@ https://golang.dbwu.tech/engineering/upx/
 set GOOS=windows
 set GOARCH=amd64
 go build -ldflags="-s -w" -trimpath -o AEUSTNetworkAutoLogin.exe AEUSTNetworkAutoLogin.go
-
 go build -ldflags="-s -w" -trimpath -o AEUSTNetworkAutoLogin.exe; upx -9 AEUSTNetworkAutoLogin.exe
 
 
 set GOOS=linux
 set GOARCH=arm64 
-go build -o network AEUSTNetworkAutoLogin.go
+go build -ldflags="-s -w" -trimpath -o AEUSTNetworkAutoLogin AEUSTNetworkAutoLogin.go
+upx -9 AEUSTNetworkAutoLogin
 go mod init AEUSTNetworkAutoLogin
+
