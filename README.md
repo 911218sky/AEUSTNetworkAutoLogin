@@ -6,7 +6,7 @@ This is a program designed to automate the process of logging into your school n
 
 You can download the program for your specific operating system using the following links:
 
-- **Windows:** [Download Program](https://github.com/911218sky/AEUSTNetworkAutoLogin/releases/download/v1/AEUSTNetworkAutoLogin.exe)
+- **Windows:** [Download Program](https://github.com/911218sky/AEUSTNetworkAutoLogin/releases/download/v2/AEUSTNetworkAutoLogin.exe)
 - **Linux ARM64:** [Download Program](https://github.com/911218sky/AEUSTNetworkAutoLogin/releases/download/v1/AEUSTNetworkAutoLogin_Linux_ARM64)
 
 ## How to Use
