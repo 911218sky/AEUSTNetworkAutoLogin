@@ -80,12 +80,14 @@ func PerformLogin(cfg *config.Config) error {
 		return errors.New("magic value not found")
 	}
 
-	resp, err = client.R().
+	resp, err = client.SetTimeout(time.Second).
+		R().
 		SetFormData(map[string]string{
 			"magic":    magic,
-			"4Tredir":  "http://edge-http.microsoft.com/captiveportal/generate_204",
+			"4Tredir":  "http://www.gstatic.com/generate_204",
 			"username": cfg.Username,
 			"password": cfg.Password,
+			"submit":   "確認",
 		}).
 		SetHeaders(map[string]string{
 			"Host":       "fg.aeust.edu.tw:1442",
@@ -93,7 +95,7 @@ func PerformLogin(cfg *config.Config) error {
 			"Referer":    loginUrl,
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
 		}).
-		Post("https://fg.aeust.edu.tw:1442/") // 替换为实际的登录 Post URL
+		Post("https://fg.aeust.edu.tw:1003/")
 
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
