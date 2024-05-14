@@ -2,13 +2,6 @@
 
 This is a program designed to automate the process of logging into your school network, allowing you to effortlessly access the network without repetitive manual logins. This program is compatible with both Windows and Linux ARM64 operating systems.
 
-## Download
-
-You can download the program for your specific operating system using the following links:
-
-- **Windows:** [Download Program](https://github.com/911218sky/AEUSTNetworkAutoLogin/releases/download/v2/AEUSTNetworkAutoLogin.exe)
-- **Linux ARM64:** [Download Program](https://github.com/911218sky/AEUSTNetworkAutoLogin/releases/download/v1/AEUSTNetworkAutoLogin_Linux_ARM64)
-
 ## How to Use
 
 1. Download the program compatible with your operating system and save it to your computer.
