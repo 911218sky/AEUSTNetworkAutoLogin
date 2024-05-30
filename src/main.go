@@ -1,15 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"time"
-
 	"AEUSTNetworkAutoLogin/src/config"
 	"AEUSTNetworkAutoLogin/src/logger"
 	"AEUSTNetworkAutoLogin/src/network"
 	"AEUSTNetworkAutoLogin/src/utils"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 func main() {

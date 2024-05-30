@@ -4,10 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/go-ping/ping"
 	"github.com/go-resty/resty/v2"
 
@@ -52,33 +50,19 @@ func PerformLogin(cfg *config.Config) error {
 		return nil
 	}
 
-	regex := regexp.MustCompile(`window\.location\s*=\s*"([^"]+)";`)
+	regex := regexp.MustCompile(`\?([^&]+)";`)
 	match := regex.FindStringSubmatch(body)
 	if match == nil || len(match) < 2 {
 		return errors.New("login URL not found")
 	}
-	loginUrl := match[1]
-
-	resp, err = client.R().Get(loginUrl)
-
-	if err != nil {
-		logger.LogError(err, cfg.ErrorLogPath)
-		return err
-	}
-
-	body = resp.String()
-
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(body))
-	if err != nil {
-		logger.LogError(err, cfg.ErrorLogPath)
-		return err
-	}
-
-	magic := doc.Find("input[type=hidden]:nth-child(1)").AttrOr("value", "")
+	magic := match[1]
 
 	if magic == "" {
 		return errors.New("magic value not found")
 	}
+
+	fgtauthUrl := fmt.Sprintf("https://fg.aeust.edu.tw:1442/fgtauth?%s", magic)
+	client.R().Get(fgtauthUrl)
 
 	resp, err = client.SetTimeout(time.Second).
 		R().
@@ -92,10 +76,10 @@ func PerformLogin(cfg *config.Config) error {
 		SetHeaders(map[string]string{
 			"Host":       "fg.aeust.edu.tw:1442",
 			"Origin":     "https://fg.aeust.edu.tw:1442",
-			"Referer":    loginUrl,
-			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+			"Referer":    fgtauthUrl,
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
 		}).
-		Post("https://fg.aeust.edu.tw:1003/")
+		Post("https://fg.aeust.edu.tw:1442/")
 
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
