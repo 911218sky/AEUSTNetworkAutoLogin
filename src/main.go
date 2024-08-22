@@ -12,6 +12,8 @@ import (
 	"AEUSTNetworkAutoLogin/src/logger"
 	"AEUSTNetworkAutoLogin/src/network"
 	"AEUSTNetworkAutoLogin/src/utils"
+
+	"github.com/go-resty/resty/v2"
 )
 
 func main() {
@@ -70,8 +72,10 @@ func main() {
 		}
 	}
 
+	client := resty.New()
+
 	for {
-		err = network.PerformLogin(cfg)
+		err = network.PerformLogin(cfg, client)
 		if err != nil {
 			logger.LogError(err, cfg.ErrorLogPath)
 		}

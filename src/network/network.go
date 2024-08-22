@@ -32,13 +32,12 @@ func PingHost(host string, cfg *config.Config) bool {
 }
 
 // PerformLogin attempts to log in using the provided credentials and configuration.
-func PerformLogin(cfg *config.Config) error {
+func PerformLogin(cfg *config.Config, client *resty.Client) error {
 	pingResult := PingHost(cfg.Ping, cfg)
 	if pingResult {
 		return nil
 	}
 
-	client := resty.New()
 	resp, err := client.R().
 		Get("http://www.gstatic.com/generate_204")
 
