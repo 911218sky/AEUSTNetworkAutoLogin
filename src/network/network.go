@@ -16,19 +16,17 @@ import (
 	"AEUSTNetworkAutoLogin/src/utils"
 )
 
-// pinger is a global variable to store the pinger instance
-var pinger *ping.Pinger
+var client = resty.New()
 
 // PingHost checks if the specified host is reachable via ping.
 func PingHost(host string, cfg *config.Config) bool {
-	var err error
-	if pinger == nil {
-		pinger, err = ping.NewPinger(host)
-		if err != nil {
-			logger.LogError(err, cfg.ErrorLogPath)
-			return false
-		}
+	pinger, err := ping.NewPinger(host)
+	if err != nil {
+		logger.LogError(err, cfg.ErrorLogPath)
+		return false
 	}
+	defer pinger.Stop()
+
 	pinger.Count = 1
 	pinger.Timeout = time.Second * 2
 	pinger.Run()
@@ -42,7 +40,6 @@ func PerformLogin(cfg *config.Config) error {
 	if pingResult {
 		return nil
 	}
-	client := resty.New()
 
 	resp, err := client.R().
 		Get("http://www.gstatic.com/generate_204")
@@ -122,7 +119,6 @@ func Logout(cfg *config.Config) error {
 		logger.LogError(fmt.Errorf("logout URL not found in temp file"), cfg.ErrorLogPath)
 		return err
 	}
-	client := resty.New()
 	resp, err := client.R().Get(logoutUrl)
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
