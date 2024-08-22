@@ -16,8 +16,6 @@ import (
 	"AEUSTNetworkAutoLogin/src/utils"
 )
 
-var client = resty.New()
-
 // PingHost checks if the specified host is reachable via ping.
 func PingHost(host string, cfg *config.Config) bool {
 	pinger, err := ping.NewPinger(host)
@@ -26,7 +24,6 @@ func PingHost(host string, cfg *config.Config) bool {
 		return false
 	}
 	defer pinger.Stop()
-
 	pinger.Count = 1
 	pinger.Timeout = time.Second * 2
 	pinger.Run()
@@ -41,6 +38,7 @@ func PerformLogin(cfg *config.Config) error {
 		return nil
 	}
 
+	client := resty.New()
 	resp, err := client.R().
 		Get("http://www.gstatic.com/generate_204")
 
@@ -82,7 +80,7 @@ func PerformLogin(cfg *config.Config) error {
 			"Host":       "fg.aeust.edu.tw:1442",
 			"Origin":     "https://fg.aeust.edu.tw:1442",
 			"Referer":    fgtauthUrl,
-			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 		}).
 		Post("https://fg.aeust.edu.tw:1442/")
 
@@ -119,6 +117,8 @@ func Logout(cfg *config.Config) error {
 		logger.LogError(fmt.Errorf("logout URL not found in temp file"), cfg.ErrorLogPath)
 		return err
 	}
+
+	client := resty.New()
 	resp, err := client.R().Get(logoutUrl)
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
