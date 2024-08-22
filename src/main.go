@@ -60,6 +60,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("Failed to remove temp file: %v\n", err)
 		}
+		os.Exit(0)
 	}()
 
 	if utils.CheckFileExists(logoutFilePath) {
@@ -69,12 +70,11 @@ func main() {
 		}
 	}
 
-	ticker := time.NewTicker(cfg.Interval)
 	for {
 		err = network.PerformLogin(cfg)
 		if err != nil {
 			logger.LogError(err, cfg.ErrorLogPath)
 		}
-		<-ticker.C
+		time.Sleep(cfg.Interval)
 	}
 }

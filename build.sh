@@ -2,7 +2,7 @@
 
 SOURCE_FILE="./src/main.go"
 BUILD_FLAGS="-s -w"
-UPX_COMPRESSION_FLAGS="-6"
+UPX_COMPRESSION_FLAGS="-9"
 
 # Linux
 # AMD64
