@@ -48,9 +48,9 @@ func main() {
 	}
 
 	fmt.Printf("Configuration loaded. Username: %s\n", cfg.Username)
-	logoutFilePath := filepath.Join(cfg.TempPath, "logout")
 
 	// Handle SIGINT and SIGTERM to perform cleanup before exiting.
+	logoutFilePath := filepath.Join(cfg.TempPath, "logout")
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
