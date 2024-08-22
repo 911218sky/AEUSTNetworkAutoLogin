@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-ini/ini"
@@ -15,6 +17,7 @@ type Config struct {
 	Password     string
 	LoginLogPath string
 	ErrorLogPath string
+	TempPath     string
 }
 
 // LoadConfig loads the application configuration from the specified file.
@@ -35,6 +38,7 @@ func LoadConfig(configFilePath string) (*Config, error) {
 	password := section.Key("PASSWORD").String()
 	loginLogPath := section.Key("LOGIN_LOGFILE_PATH").String()
 	errorLogPath := section.Key("ERROR_LOGFILE_PATH").String()
+	tempPath := section.Key("TEMP_PATH").String()
 
 	return &Config{
 		Ping:         ping,
@@ -43,11 +47,17 @@ func LoadConfig(configFilePath string) (*Config, error) {
 		Password:     password,
 		LoginLogPath: loginLogPath,
 		ErrorLogPath: errorLogPath,
+		TempPath:     tempPath,
 	}, nil
 }
 
 // CreateDefaultConfig creates a default
 func CreateDefaultConfig() (*Config, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
 	username := utils.PromptUserInput("Please enter your student account number: ")
 	password := utils.PromptUserInput("Please enter your student password: ")
 	defaultConfig := &Config{
@@ -57,6 +67,7 @@ func CreateDefaultConfig() (*Config, error) {
 		Password:     password,
 		LoginLogPath: "login.log",
 		ErrorLogPath: "error.log",
+		TempPath:     filepath.Join(dir, "temp"),
 	}
 
 	cfg := ini.Empty()
@@ -70,6 +81,12 @@ func CreateDefaultConfig() (*Config, error) {
 		return nil, err
 	}
 
+	err = os.MkdirAll(defaultConfig.TempPath, 0755)
+
+	if err != nil {
+		return nil, err
+	}
+
 	section, _ := cfg.NewSection("Settings")
 	section.NewKey("PING", defaultConfig.Ping)
 	section.NewKey("INTERVAL", defaultConfig.Interval.String())
@@ -77,6 +94,7 @@ func CreateDefaultConfig() (*Config, error) {
 	section.NewKey("PASSWORD", defaultConfig.Password)
 	section.NewKey("LOGIN_LOGFILE_PATH", LOGIN_LOGFILE_PATH)
 	section.NewKey("ERROR_LOGFILE_PATH", ERROR_LOGFILE_PATH)
+	section.NewKey("TEMP_PATH", defaultConfig.TempPath)
 
 	err = cfg.SaveTo("config.ini")
 	if err != nil {

@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,4 +60,66 @@ func GetFormattedDateTime() string {
 func CheckFileExists(filepath string) bool {
 	_, err := os.Stat(filepath)
 	return !os.IsNotExist(err)
+}
+
+// WriteCustomBinaryFile writes a custom formatted binary file with given content.
+// It includes metadata such as file version and content length.
+func WriteCustomBinaryFile(filename string, content string) error {
+	data := []byte(content)
+
+	var buf bytes.Buffer
+
+	version := uint32(1)
+	if err := binary.Write(&buf, binary.LittleEndian, version); err != nil {
+		return fmt.Errorf("failed to write version: %w", err)
+	}
+
+	dataLength := uint32(len(data))
+	if err := binary.Write(&buf, binary.LittleEndian, dataLength); err != nil {
+		return fmt.Errorf("failed to write data length: %w", err)
+	}
+
+	if _, err := buf.Write(data); err != nil {
+		return fmt.Errorf("failed to write data: %w", err)
+	}
+
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := file.Write(buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+
+	return nil
+}
+
+// ReadCustomBinaryFile reads a custom formatted binary file and returns its content as a string.
+// It parses the metadata such as file version and data length before reading the actual content.
+func ReadCustomBinaryFile(filename string) (string, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	buf := bytes.NewReader(data)
+
+	var version uint32
+	if err := binary.Read(buf, binary.LittleEndian, &version); err != nil {
+		return "", fmt.Errorf("failed to read version: %w", err)
+	}
+
+	var dataLength uint32
+	if err := binary.Read(buf, binary.LittleEndian, &dataLength); err != nil {
+		return "", fmt.Errorf("failed to read data length: %w", err)
+	}
+
+	readData := make([]byte, dataLength)
+	if _, err := buf.Read(readData); err != nil {
+		return "", fmt.Errorf("failed to read data: %w", err)
+	}
+
+	return string(readData), nil
 }

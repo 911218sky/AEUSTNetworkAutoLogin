@@ -1,14 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+	"time"
+
 	"AEUSTNetworkAutoLogin/src/config"
 	"AEUSTNetworkAutoLogin/src/logger"
 	"AEUSTNetworkAutoLogin/src/network"
 	"AEUSTNetworkAutoLogin/src/utils"
-	"fmt"
-	"os"
-	"path/filepath"
-	"time"
 )
 
 func main() {
@@ -45,12 +48,34 @@ func main() {
 	}
 
 	fmt.Printf("Configuration loaded. Username: %s\n", cfg.Username)
+	logoutFilePath := filepath.Join(cfg.TempPath, "logout")
 
+	// Handle SIGINT and SIGTERM to perform cleanup before exiting.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		network.Logout(cfg)
+		err := os.Remove(logoutFilePath)
+		if err != nil {
+			fmt.Printf("Failed to remove temp file: %v\n", err)
+		}
+		os.Exit(0)
+	}()
+
+	if utils.CheckFileExists(logoutFilePath) {
+		err := network.Logout(cfg)
+		if err != nil {
+			os.Exit(1)
+		}
+	}
+
+	ticker := time.NewTicker(cfg.Interval)
 	for {
 		err = network.PerformLogin(cfg)
 		if err != nil {
 			logger.LogError(err, cfg.ErrorLogPath)
 		}
-		time.Sleep(cfg.Interval)
+		<-ticker.C
 	}
 }
