@@ -73,12 +73,13 @@ func main() {
 	}
 
 	client := resty.New()
+	ticker := time.NewTicker(cfg.Interval)
 
 	for {
 		err = network.PerformLogin(cfg, client)
 		if err != nil {
 			logger.LogError(err, cfg.ErrorLogPath)
 		}
-		time.Sleep(cfg.Interval)
+		<-ticker.C
 	}
 }

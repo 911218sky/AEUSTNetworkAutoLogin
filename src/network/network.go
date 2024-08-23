@@ -6,6 +6,7 @@ import (
 	"net"
 	"path"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/go-ping/ping"
@@ -17,13 +18,16 @@ import (
 )
 
 // PingHost checks if the specified host is reachable via ping.
-func PingHost(host string, cfg *config.Config) bool {
-	pinger, err := ping.NewPinger(host)
+func PingHost(cfg *config.Config) bool {
+	pinger, err := ping.NewPinger(cfg.Ping)
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
 		return false
 	}
-	defer pinger.Stop()
+	// If the OS is Windows, we need to use privileged mode
+	if runtime.GOOS == "windows" {
+		pinger.SetPrivileged(true)
+	}
 	pinger.Count = 1
 	pinger.Timeout = time.Second * 2
 	pinger.Run()
@@ -33,7 +37,7 @@ func PingHost(host string, cfg *config.Config) bool {
 
 // PerformLogin attempts to log in using the provided credentials and configuration.
 func PerformLogin(cfg *config.Config, client *resty.Client) error {
-	pingResult := PingHost(cfg.Ping, cfg)
+	pingResult := PingHost(cfg)
 	if pingResult {
 		return nil
 	}
