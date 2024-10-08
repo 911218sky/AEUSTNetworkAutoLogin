@@ -37,6 +37,7 @@ func PingHost(cfg *config.Config) bool {
 
 // PerformLogin attempts to log in using the provided credentials and configuration.
 func PerformLogin(cfg *config.Config, client *resty.Client) error {
+	port := "1003"
 	pingResult := PingHost(cfg)
 	if pingResult {
 		return nil
@@ -67,7 +68,7 @@ func PerformLogin(cfg *config.Config, client *resty.Client) error {
 		return errors.New("magic value not found")
 	}
 
-	fgtauthUrl := fmt.Sprintf("https://fg.aeust.edu.tw:1442/fgtauth?%s", magic)
+	fgtauthUrl := fmt.Sprintf("https://fg.aeust.edu.tw:%s/fgtauth?%s", port, magic)
 	client.R().Get(fgtauthUrl)
 
 	resp, err = client.SetTimeout(time.Second).
@@ -80,12 +81,12 @@ func PerformLogin(cfg *config.Config, client *resty.Client) error {
 			"submit":   "確認",
 		}).
 		SetHeaders(map[string]string{
-			"Host":       "fg.aeust.edu.tw:1442",
-			"Origin":     "https://fg.aeust.edu.tw:1442",
+			"Host":       "fg.aeust.edu.tw:" + port,
+			"Origin":     "https://fg.aeust.edu.tw:" + port,
 			"Referer":    fgtauthUrl,
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 		}).
-		Post("https://fg.aeust.edu.tw:1442/")
+		Post("https://fg.aeust.edu.tw:" + port + "/")
 
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -102,7 +103,7 @@ func PerformLogin(cfg *config.Config, client *resty.Client) error {
 		if match == nil || len(match) < 2 {
 			return fmt.Errorf("logout URL not found")
 		}
-		logoutUrl := fmt.Sprintf("https://fg.aeust.edu.tw:1442/logout?%s", match[1])
+		logoutUrl := fmt.Sprintf("https://fg.aeust.edu.tw:%s/logout?%s", port, match[1])
 		utils.WriteCustomBinaryFile(path.Join(cfg.TempPath, "logout"), logoutUrl)
 		logger.LogSuccess(cfg.Username, "Login successful", cfg.LoginLogPath)
 	} else {
