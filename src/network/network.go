@@ -37,14 +37,15 @@ func PingHost(cfg *config.Config) bool {
 
 // PerformLogin attempts to log in using the provided credentials and configuration.
 func PerformLogin(cfg *config.Config, client *resty.Client) error {
-	port := "1003"
 	pingResult := PingHost(cfg)
 	if pingResult {
 		return nil
 	}
 
+	const generateUrl = "http://www.gstatic.com/generate_204"
+
 	resp, err := client.R().
-		Get("http://www.gstatic.com/generate_204")
+		Get(generateUrl)
 
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
@@ -52,30 +53,28 @@ func PerformLogin(cfg *config.Config, client *resty.Client) error {
 	}
 
 	body := resp.String()
-
 	if body == "" {
 		return nil
 	}
 
-	regex := regexp.MustCompile(`\?([^&]+)";`)
+	regex := regexp.MustCompile(`window\.location="?(https://fg\.aeust\.edu\.tw:(\d+)/fgtauth\?([^"&]+))"?;`)
 	match := regex.FindStringSubmatch(body)
-	if match == nil || len(match) < 2 {
-		return errors.New("login URL not found")
+	var fgtauthUrl, port, magicValue string
+	if len(match) >= 4 {
+		fgtauthUrl = match[1]
+		port = match[2]
+		magicValue = match[3]
+	} else {
+		return errors.New("no matching URL, port, and magic value found")
 	}
-	magic := match[1]
 
-	if magic == "" {
-		return errors.New("magic value not found")
-	}
-
-	fgtauthUrl := fmt.Sprintf("https://fg.aeust.edu.tw:%s/fgtauth?%s", port, magic)
 	client.R().Get(fgtauthUrl)
 
 	resp, err = client.SetTimeout(time.Second).
 		R().
 		SetFormData(map[string]string{
-			"magic":    magic,
-			"4Tredir":  "http://www.gstatic.com/generate_204",
+			"magic":    magicValue,
+			"4Tredir":  generateUrl,
 			"username": cfg.Username,
 			"password": cfg.Password,
 			"submit":   "確認",
