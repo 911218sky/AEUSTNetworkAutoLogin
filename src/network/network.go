@@ -1,10 +1,11 @@
 package network
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
-	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"time"
@@ -17,39 +18,74 @@ import (
 	"AEUSTNetworkAutoLogin/src/utils"
 )
 
-// PingHost checks if the specified host is reachable via ping.
-func PingHost(cfg *config.Config) bool {
+const (
+	generateURL    = "http://www.gstatic.com/generate_204"
+	defaultTimeout = 5 * time.Second
+	pingTimeout    = 2 * time.Second
+	pingCount      = 1
+	userAgent      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+	logoutFileName = "logout"
+)
+
+var (
+	// ErrInvalidCredentials indicates invalid username or password
+	ErrInvalidCredentials = errors.New("invalid username or password")
+	// ErrNoMatchingURL indicates no matching URL found
+	ErrNoMatchingURL = errors.New("no matching URL found")
+	// ErrLogoutURLNotFound indicates logout URL not found
+	ErrLogoutURLNotFound = errors.New("logout URL not found")
+
+	// Regular expression for parsing redirect URL
+	redirectURLRegex = regexp.MustCompile(`window\.location="?(https://fg\.aeust\.edu\.tw:(\d+)/fgtauth\?([^"&]+))"?;`)
+	// Regular expression for parsing logout URL
+	logoutURLRegex = regexp.MustCompile(`/keepalive\?([^"]+)`)
+)
+
+// PingHost checks if the specified host is reachable via ping
+func PingHost(ctx context.Context, cfg *config.Config) bool {
 	pinger, err := ping.NewPinger(cfg.Ping)
 	if err != nil {
 		logger.LogError(err, cfg.ErrorLogPath)
 		return false
 	}
-	// If the OS is Windows, we need to use privileged mode
+
 	if runtime.GOOS == "windows" {
 		pinger.SetPrivileged(true)
 	}
-	pinger.Count = 1
-	pinger.Timeout = time.Second * 2
-	pinger.Run()
-	stats := pinger.Statistics()
-	return stats.PacketsRecv > 0
+
+	pinger.Count = pingCount
+	pinger.Timeout = pingTimeout
+
+	// Use context for timeout control
+	done := make(chan bool)
+	go func() {
+		pinger.Run()
+		done <- true
+	}()
+
+	select {
+	case <-ctx.Done():
+		pinger.Stop()
+		return false
+	case <-done:
+		stats := pinger.Statistics()
+		return stats.PacketsRecv > 0
+	}
 }
 
-// PerformLogin attempts to log in using the provided credentials and configuration.
+// PerformLogin attempts to log in using the provided credentials and configuration
 func PerformLogin(cfg *config.Config, client *resty.Client) error {
-	pingResult := PingHost(cfg)
-	if pingResult {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	if PingHost(ctx, cfg) {
 		return nil
 	}
 
-	const generateUrl = "http://www.gstatic.com/generate_204"
-
-	resp, err := client.R().
-		Get(generateUrl)
-
+	// Get redirect URL
+	resp, err := client.R().Get(generateURL)
 	if err != nil {
-		logger.LogError(err, cfg.ErrorLogPath)
-		return err
+		return fmt.Errorf("failed to access generate page: %w", err)
 	}
 
 	body := resp.String()
@@ -57,81 +93,90 @@ func PerformLogin(cfg *config.Config, client *resty.Client) error {
 		return nil
 	}
 
-	regex := regexp.MustCompile(`window\.location="?(https://fg\.aeust\.edu\.tw:(\d+)/fgtauth\?([^"&]+))"?;`)
-	match := regex.FindStringSubmatch(body)
-	var fgtauthUrl, port, magicValue string
-	if len(match) >= 4 {
-		fgtauthUrl = match[1]
-		port = match[2]
-		magicValue = match[3]
-	} else {
-		return errors.New("no matching URL, port, and magic value found")
+	// Parse redirect URL
+	match := redirectURLRegex.FindStringSubmatch(body)
+	if len(match) < 4 {
+		return ErrNoMatchingURL
 	}
 
-	client.R().Get(fgtauthUrl)
+	fgtauthURL := match[1]
+	port := match[2]
+	magicValue := match[3]
 
-	resp, err = client.SetTimeout(time.Second).
+	// Access authentication page
+	if _, err := client.R().Get(fgtauthURL); err != nil {
+		return fmt.Errorf("failed to access authentication page: %w", err)
+	}
+
+	// Submit login form
+	resp, err = client.SetTimeout(defaultTimeout).
 		R().
 		SetFormData(map[string]string{
 			"magic":    magicValue,
-			"4Tredir":  generateUrl,
+			"4Tredir":  generateURL,
 			"username": cfg.Username,
 			"password": cfg.Password,
-			"submit":   "確認",
+			"submit":   "Submit",
 		}).
 		SetHeaders(map[string]string{
-			"Host":       "fg.aeust.edu.tw:" + port,
-			"Origin":     "https://fg.aeust.edu.tw:" + port,
-			"Referer":    fgtauthUrl,
-			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+			"Host":       fmt.Sprintf("fg.aeust.edu.tw:%s", port),
+			"Origin":     fmt.Sprintf("https://fg.aeust.edu.tw:%s", port),
+			"Referer":    fgtauthURL,
+			"User-Agent": userAgent,
 		}).
-		Post("https://fg.aeust.edu.tw:" + port + "/")
+		Post(fmt.Sprintf("https://fg.aeust.edu.tw:%s/", port))
 
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			logger.LogError(fmt.Errorf("invalid username or password, please check your credentials"), cfg.ErrorLogPath)
-			return nil
+			return ErrInvalidCredentials
 		}
-		logger.LogError(err, cfg.ErrorLogPath)
-		return err
+		return fmt.Errorf("login request failed: %w", err)
 	}
 
-	if resp.StatusCode() == 200 {
-		regex := regexp.MustCompile(`/keepalive\?([^"]+)`)
-		match := regex.FindStringSubmatch(resp.String())
-		if match == nil || len(match) < 2 {
-			return fmt.Errorf("logout URL not found")
-		}
-		logoutUrl := fmt.Sprintf("https://fg.aeust.edu.tw:%s/logout?%s", port, match[1])
-		utils.WriteCustomBinaryFile(path.Join(cfg.TempPath, "logout"), logoutUrl)
-		logger.LogSuccess(cfg.Username, "Login successful", cfg.LoginLogPath)
-	} else {
-		logger.LogError(fmt.Errorf("login failed with status code: %d", resp.StatusCode()), cfg.ErrorLogPath)
+	if resp.StatusCode() != 200 {
 		return fmt.Errorf("login failed with status code: %d", resp.StatusCode())
+	}
+
+	// Parse and save logout URL
+	match = logoutURLRegex.FindStringSubmatch(resp.String())
+	if len(match) < 2 {
+		return ErrLogoutURLNotFound
+	}
+
+	logoutURL := fmt.Sprintf("https://fg.aeust.edu.tw:%s/logout?%s", port, match[1])
+	if err := utils.WriteBinaryFile(filepath.Join(cfg.TempPath, logoutFileName), logoutURL); err != nil {
+		return fmt.Errorf("failed to save logout URL: %w", err)
+	}
+
+	if err := logger.LogSuccess(cfg.Username, "Login successful", cfg.LoginLogPath); err != nil {
+		return fmt.Errorf("failed to log login success: %w", err)
 	}
 
 	return nil
 }
 
-// Logout logs out of the network.
+// Logout performs network logout operation
 func Logout(cfg *config.Config) error {
-	logoutUrl, err := utils.ReadCustomBinaryFile(path.Join(cfg.TempPath, "logout"))
+	// Read logout URL
+	logoutURL, err := utils.ReadBinaryFile(filepath.Join(cfg.TempPath, logoutFileName))
 	if err != nil {
-		logger.LogError(fmt.Errorf("logout URL not found in temp file"), cfg.ErrorLogPath)
-		return err
+		return fmt.Errorf("failed to read logout URL: %w", err)
 	}
 
-	client := resty.New()
-	resp, err := client.R().Get(logoutUrl)
+	// Execute logout request
+	client := resty.New().SetTimeout(defaultTimeout)
+	resp, err := client.R().Get(logoutURL)
 	if err != nil {
-		logger.LogError(err, cfg.ErrorLogPath)
-		return err
+		return fmt.Errorf("logout request failed: %w", err)
 	}
-	if resp.StatusCode() == 200 {
-		logger.LogSuccess(cfg.Username, "Logout successful", cfg.LoginLogPath)
-	} else {
-		logger.LogError(fmt.Errorf("logout failed with status code: %d", resp.StatusCode()), cfg.ErrorLogPath)
+
+	if resp.StatusCode() != 200 {
 		return fmt.Errorf("logout failed with status code: %d", resp.StatusCode())
 	}
+
+	if err := logger.LogSuccess(cfg.Username, "Logout successful", cfg.LoginLogPath); err != nil {
+		return fmt.Errorf("failed to log logout success: %w", err)
+	}
+
 	return nil
 }
