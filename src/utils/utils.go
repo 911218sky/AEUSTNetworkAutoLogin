@@ -1,104 +1,111 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-// PromptUserInput displays a question to the user and captures their input.
-// The `question` parameter is the prompt displayed to the user.
-// It returns the user's input as a string.
+const (
+	// FilePermission defines default file permissions
+	FilePermission = 0644
+	// BinaryFileVersion defines the binary file format version
+	BinaryFileVersion = uint32(1)
+)
+
+// PromptUserInput displays a question to the user and captures their input
+// Supports multi-line input until the user presses Enter
 func PromptUserInput(question string) string {
 	fmt.Print(question)
-	var input string
-	fmt.Scanln(&input)
-	return input
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	return strings.TrimSpace(input)
 }
 
-// CreateLogFile creates a log file in the directory of the executable.
-// The `filename` parameter is the name of the log file to be created.
-// It returns the full path to the created log file and any error encountered.
+// CreateLogFile creates a log file at the specified path
+// If the directory doesn't exist, it will be created automatically
 func CreateLogFile(filename string) (string, error) {
-	var filePath string
-
+	filePath := filename
 	if !filepath.IsAbs(filename) {
 		dir, err := os.Getwd()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
 		}
 		filePath = filepath.Join(dir, filename)
-	} else {
-		filePath = filename
 	}
 
-	file, err := os.Create(filePath)
-	if err != nil {
-		return "", err
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	err = file.Close()
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, FilePermission)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create log file: %w", err)
 	}
+	defer file.Close()
 
 	return filePath, nil
 }
 
-// GetFormattedDateTime returns the current date and time in a formatted string.
-// The format is "YYYY-MM-DD HH:MM:SS".
+// GetFormattedDateTime returns the current date and time in formatted string
+// Format: "YYYY-MM-DD HH:MM:SS"
 func GetFormattedDateTime() string {
 	return time.Now().Format("2006-01-02 15:04:05")
 }
 
-// CheckFileExists checks if a file exists at the given filepath.
-// The `filepath` parameter is the path to the file to check.
-// It returns true if the file exists, or false otherwise.
+// CheckFileExists checks if a file exists at the specified path
 func CheckFileExists(filepath string) bool {
-	_, err := os.Stat(filepath)
-	return !os.IsNotExist(err)
+	info, err := os.Stat(filepath)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }
 
-// WriteCustomBinaryFile writes a custom formatted binary file with given content.
-// It includes metadata such as file version and content length.
-func WriteCustomBinaryFile(filename string, content string) error {
-	data := []byte(content)
-
+// WriteBinaryFile writes content to a custom format binary file
+// Includes metadata such as version and content length
+func WriteBinaryFile(filename string, content string) error {
 	var buf bytes.Buffer
 
-	version := uint32(1)
-	if err := binary.Write(&buf, binary.LittleEndian, version); err != nil {
-		return fmt.Errorf("failed to write version: %w", err)
+	// Write version information
+	if err := binary.Write(&buf, binary.LittleEndian, BinaryFileVersion); err != nil {
+		return fmt.Errorf("failed to write version info: %w", err)
 	}
 
+	// Write data length
+	data := []byte(content)
 	dataLength := uint32(len(data))
 	if err := binary.Write(&buf, binary.LittleEndian, dataLength); err != nil {
 		return fmt.Errorf("failed to write data length: %w", err)
 	}
 
+	// Write actual data
 	if _, err := buf.Write(data); err != nil {
 		return fmt.Errorf("failed to write data: %w", err)
 	}
 
-	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
-	defer file.Close()
 
-	if _, err := file.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("failed to write to file: %w", err)
+	// Write to file
+	if err := os.WriteFile(filename, buf.Bytes(), FilePermission); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
 	}
 
 	return nil
 }
 
-// ReadCustomBinaryFile reads a custom formatted binary file and returns its content as a string.
-// It parses the metadata such as file version and data length before reading the actual content.
-func ReadCustomBinaryFile(filename string) (string, error) {
+// ReadBinaryFile reads a custom format binary file and returns its content
+// Parses metadata such as version and data length
+func ReadBinaryFile(filename string) (string, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
@@ -106,20 +113,36 @@ func ReadCustomBinaryFile(filename string) (string, error) {
 
 	buf := bytes.NewReader(data)
 
+	// Read version information
 	var version uint32
 	if err := binary.Read(buf, binary.LittleEndian, &version); err != nil {
-		return "", fmt.Errorf("failed to read version: %w", err)
+		return "", fmt.Errorf("failed to read version info: %w", err)
 	}
 
+	// Validate version
+	if version != BinaryFileVersion {
+		return "", fmt.Errorf("unsupported file version: %d", version)
+	}
+
+	// Read data length
 	var dataLength uint32
 	if err := binary.Read(buf, binary.LittleEndian, &dataLength); err != nil {
 		return "", fmt.Errorf("failed to read data length: %w", err)
 	}
 
+	// Read actual data
 	readData := make([]byte, dataLength)
 	if _, err := buf.Read(readData); err != nil {
 		return "", fmt.Errorf("failed to read data: %w", err)
 	}
 
 	return string(readData), nil
+}
+
+// EnsureDirectoryExists ensures that the directory at the specified path exists
+func EnsureDirectoryExists(path string) error {
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", path, err)
+	}
+	return nil
 }
